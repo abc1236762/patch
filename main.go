@@ -12,7 +12,6 @@ func main() {
 	var err error
 	var path string
 	var cpySet *set
-	
 	if path, err = getPath(); err != nil {
 		cpySet.procErr(err, "opening path "+"`"+path+"`", false, true)
 	}
@@ -28,6 +27,7 @@ func main() {
 	if err = cpySet.createRecoverBat(); err != nil {
 		cpySet.procErr(err, "creating recover batch file", true, true)
 	}
+	pause()
 }
 
 func pause() {
@@ -46,21 +46,21 @@ func getPath() (path string, err error) {
 	return
 }
 
-// func isDirEmpty(path string) (isEmpty bool, err error) {
-// 	var fileInfo os.FileInfo
-// 	if fileInfo, err = os.Stat(path); err != nil || !fileInfo.IsDir() {
-// 		return
-// 	}
-// 	var file *os.File
-// 	if file, err = os.Open(path); err != nil {
-// 		return
-// 	}
-// 	defer file.Close()
-// 	if _, err = file.Readdirnames(1); err == io.EOF {
-// 		return true, nil
-// 	}
-// 	return
-// }
+func isDirEmpty(path string) (isEmpty bool, err error) {
+	var fileInfo os.FileInfo
+	if fileInfo, err = os.Stat(path); err != nil || !fileInfo.IsDir() {
+		return
+	}
+	var file *os.File
+	if file, err = os.Open(path); err != nil {
+		return
+	}
+	defer file.Close()
+	if _, err = file.Readdirnames(1); err == io.EOF {
+		return true, nil
+	}
+	return
+}
 
 func copyFile(src, dst string) (err error) {
 	var srcFile, dstFile *os.File

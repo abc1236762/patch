@@ -12,12 +12,30 @@ type set struct {
 	path, root           string
 }
 
-func makeSet(path, root string) (s *set, err error) {
+func makeSet(path, relRoot string) (s *set, err error) {
 	fmt.Println("Preparing . . . ")
 	s = new(set)
-	s.path, s.root = path, root
+	s.path = path
+	if s.root, err = s.getRoot(relRoot); err != nil {
+		return nil, err
+	}
 	if err = s.getFiles(); err != nil {
 		return nil, err
+	}
+	return
+}
+
+func (s *set) getRoot(relRoot string) (root string, err error) {
+	var ex string
+	if ex, err = os.Executable(); err != nil {
+		return
+	}
+	root = filepath.Join(filepath.Dir(ex), relRoot)
+	if _, err = os.Stat(root); err != nil && os.IsNotExist(err) {
+		if root, err = os.Getwd(); err == nil {
+			root = filepath.Join(root, relRoot)
+			_, err = os.Stat(root)
+		}
 	}
 	return
 }
@@ -48,7 +66,7 @@ func (s *set) getFiles() (err error) {
 			if path == `.` {
 				s.dirs = append(s.dirs, `.\`)
 			} else {
-				s.dirs = append(s.dirs, `.\`+path+ `\`)
+				s.dirs = append(s.dirs, `.\`+path+`\`)
 			}
 		} else {
 			path, _ = filepath.Rel(s.root, path)
@@ -60,7 +78,7 @@ func (s *set) getFiles() (err error) {
 		}
 		return nil
 	})
-	return
+	return nil
 }
 
 func (s *set) createBackup() (err error) {
@@ -80,10 +98,14 @@ func (s *set) createBackup() (err error) {
 			}
 		}
 	}
-	return
+	return nil
 }
 
 func (s *set) patchFiles() (err error) {
+	for i, dir := range s.dirs {
+		fmt.Printf("Patching %4d/%4d %s . . . \n", i+1, len(s.files), dir)
+		os.Mkdir(filepath.Join(s.path, dir), 0666)
+	}
 	for i, file := range s.files {
 		fmt.Printf("Patching %4d/%4d %s . . . \n", i+1, len(s.files), file)
 		if err = copyFile(filepath.Join(s.root, file),
@@ -91,7 +113,7 @@ func (s *set) patchFiles() (err error) {
 			return
 		}
 	}
-	return
+	return nil
 }
 
 func (s *set) createRecoverBat() (err error) {
@@ -114,7 +136,7 @@ func (s *set) createRecoverBat() (err error) {
 		if _, err = os.Stat(filepath.Join(
 			s.path, `.backup\`, file)); err == nil {
 			fmt.Fprintf(batFile, "move \"%s\" \"%s\" >nul\n",
-				`.\`+ filepath.Join(`.\.backup\`, file), file)
+				`.\`+filepath.Join(`.\.backup\`, file), file)
 		}
 	}
 	
@@ -124,29 +146,30 @@ func (s *set) createRecoverBat() (err error) {
 	for _, dir := range getRevSortedStrSlice(s.dirs) {
 		fmt.Fprintln(batFile, "echo     "+dir)
 		fmt.Fprintf(batFile, "rd /q \"%s\" >nul 2>nul\n", dir)
-		dir = `.\`+ filepath.Join(`.\.backup\`, dir)+ `\`
+		dir = `.\` + filepath.Join(`.\.backup\`, dir) + `\`
 		fmt.Fprintln(batFile, "echo     "+dir)
 		fmt.Fprintf(batFile, "rd /q \"%s\" >nul 2>nul\n", dir)
 	}
 	fmt.Fprintln(batFile, "pause")
+	fmt.Fprintln(batFile, "del /q \"%~f0\" >nul 2>nul")
 	return batFile.Sync()
 }
 
 func (s *set) recoverPatch() (err error) {
 	var i = 1
 	for _, file := range s.files {
-		fmt.Printf("Recovering %4d/%4d `%s`\n", i,
-			len(s.files)-len(s.exFiles), file)
-		i++
 		var src = filepath.Join(s.path, `.backup\`, file)
 		var dst = filepath.Join(s.path, file)
 		if _, err = os.Stat(src); err == nil {
+			fmt.Printf("Recovering %4d/%4d `%s`\n", i,
+				len(s.files)-len(s.exFiles), file)
 			if err = os.Remove(dst); err != nil && !os.IsNotExist(err) {
 				return
 			}
 			if err = os.Rename(src, dst); err != nil {
 				return
 			}
+			i++
 		}
 	}
 	for i, file := range s.exFiles {
@@ -159,23 +182,21 @@ func (s *set) recoverPatch() (err error) {
 	for _, dir := range getRevSortedStrSlice(s.dirs) {
 		var src = filepath.Join(s.path, `.backup\`, dir)
 		var dst = filepath.Join(s.path, dir)
-		// var isEmpty bool
-		// if isEmpty, err = isDirEmpty(dst); err != nil {
-		// 	return
-		// } else if err = os.Remove(src); isEmpty && err != nil{
-		// 	return
-		// }
-		// if isEmpty, err = isDirEmpty(dst); err != nil {
-		// 	return
-		// } else if err = os.Remove(dst); isEmpty && err != nil{
-		// 	return
-		// }
-		if err = os.Remove(src); err != nil && !os.IsExist(err) {
-			return
+		var isEmpty bool
+		if _, err = os.Stat(src); err == nil {
+			if isEmpty, err = isDirEmpty(src); err != nil {
+				return
+			} else if err = os.Remove(src); isEmpty && err != nil {
+				return
+			}
 		}
-		if err = os.Remove(dst); err != nil && !os.IsExist(err) {
-			return
+		if _, err = os.Stat(dst); err == nil {
+			if isEmpty, err = isDirEmpty(dst); err != nil {
+				return
+			} else if err = os.Remove(dst); isEmpty && err != nil {
+				return
+			}
 		}
 	}
-	return
+	return nil
 }
