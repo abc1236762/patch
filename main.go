@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 )
 
 func main() {
@@ -15,8 +16,8 @@ func main() {
 	if path, err = getPath(); err != nil {
 		cpySet.procErr(err, "opening path "+"`"+path+"`", false, true)
 	}
-	if cpySet, err = makeSet(path, `./copy_files/`); err != nil {
-		cpySet.procErr(err, "getting file list of `./copy_files/`", false, true)
+	if cpySet, err = makeSet(path, `.\copy_files\`); err != nil {
+		cpySet.procErr(err, "getting file list of .\\copy_files\\", false, true)
 	}
 	if err = cpySet.createBackup(); err != nil {
 		cpySet.procErr(err, "creating backup", true, true)
@@ -45,6 +46,22 @@ func getPath() (path string, err error) {
 	return
 }
 
+// func isDirEmpty(path string) (isEmpty bool, err error) {
+// 	var fileInfo os.FileInfo
+// 	if fileInfo, err = os.Stat(path); err != nil || !fileInfo.IsDir() {
+// 		return
+// 	}
+// 	var file *os.File
+// 	if file, err = os.Open(path); err != nil {
+// 		return
+// 	}
+// 	defer file.Close()
+// 	if _, err = file.Readdirnames(1); err == io.EOF {
+// 		return true, nil
+// 	}
+// 	return
+// }
+
 func copyFile(src, dst string) (err error) {
 	var srcFile, dstFile *os.File
 	if srcFile, err = os.Open(src); err != nil {
@@ -59,4 +76,11 @@ func copyFile(src, dst string) (err error) {
 		return
 	}
 	return dstFile.Sync()
+}
+
+func getRevSortedStrSlice(src []string) (dst []string) {
+	dst = make([]string, len(src))
+	copy(dst, src)
+	sort.Sort(sort.Reverse(sort.StringSlice(dst)))
+	return
 }
